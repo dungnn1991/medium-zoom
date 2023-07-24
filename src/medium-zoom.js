@@ -176,11 +176,23 @@ const mediumZoom = (selector, options = {}) => {
     return zoom
   }
 
-  const open = ({ target } = {}) => {
+  const open = ({ target, data } = {}) => {
+    const containerWidth =
+      data !== undefined && data.containerWidth !== undefined
+        ? data.containerWidth
+        : document.documentElement.clientWidth
+    const containerHeight =
+      data !== undefined && data.containerHeight !== undefined
+        ? data.containerHeight
+        : document.documentElement.clientHeight
+    // const rectX = data !== undefined && data.rectX !== undefined ? data.rectX : 0;
+    const rectY =
+      data !== undefined && data.rectY !== undefined ? data.rectY : 0
+
     const _animate = () => {
       let container = {
-        width: document.documentElement.clientWidth,
-        height: document.documentElement.clientHeight,
+        width: containerWidth,
+        height: containerHeight,
         left: 0,
         top: 0,
         right: 0,
@@ -256,7 +268,7 @@ const mediumZoom = (selector, options = {}) => {
           container.left) /
         scale
       const translateY =
-        (-top +
+        (-(top + rectY) +
           (viewportHeight - height) / 2 +
           zoomOptions.margin +
           container.top) /
@@ -487,12 +499,46 @@ const mediumZoom = (selector, options = {}) => {
       }
     })
 
+  const receiveMessageFromParent = event => {
+    if (event.data !== undefined) {
+      try {
+        const obj = JSON.parse(event.data)
+        if (obj.containerWidth !== undefined) {
+          return open({
+            target: _target,
+            data: obj,
+          })
+        }
+        // eslint-disable-next-line no-empty
+      } catch (error) {}
+    }
+    return undefined
+  }
+  const inIframe = () => {
+    try {
+      return window.self !== window.top
+    } catch (e) {
+      return true
+    }
+  }
+  let _target
   const toggle = ({ target } = {}) => {
     if (active.original) {
+      if (inIframe()) {
+        window.removeEventListener('message', receiveMessageFromParent, false)
+      }
       return close()
     }
 
-    return open({ target })
+    if (inIframe()) {
+      _target = target
+      window.addEventListener('message', receiveMessageFromParent, false)
+      window.parent.postMessage('Get Size Container', '*')
+      return undefined
+    }
+    return open({
+      target,
+    })
   }
 
   const getOptions = () => zoomOptions
